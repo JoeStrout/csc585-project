@@ -8,11 +8,15 @@ This is the code repository for Joe Strout's 2018 class project for CSC 585, Alg
 
 # Installation
 
-The following instructions assume a recent macOS environment.  Other Unix/Linux environments should work similarly.
+The following instructions assume a recent macOS environment with gcc and make (obtained, for example, by installing the Xcode command-line tools).  Other Unix/Linux environments should work similarly.
 
 1. Download the project from https://github.com/JoeStrout/csc585-project
 1. At a shell prompt, cd to the `src` directory:
-	`cd trunk/src`
+```bash
+cd trunk/src
+```
 1. Build the executables with `make`:
-	`make`
+```
+make
+```
 1. Enjoy.
