@@ -1,4 +1,4 @@
-q#!/bin/bash
+#!/bin/bash
 
 DATA_DIR=../data
 BIN_DIR=../bin

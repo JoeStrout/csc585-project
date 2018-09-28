@@ -360,7 +360,7 @@ void InitNet() {
 puke and die, o what to do?!
 #endif
 
-  if (syn0 == NULL) {printf("Memory allocation failed on syn0 (word2vec.c line " LINE_STRING ")"); printf("vocab_size: %ld  layer1_size: %ld  total: %ld\n", (long long)vocab_size, (long long)layer1_size, (long long)vocab_size * layer1_size * sizeof(real) * 128); exit(1);}
+  if (syn0 == NULL) {printf("Memory allocation failed on syn0 (word2vec.c line " LINE_STRING ")"); printf("vocab_size: %lld  layer1_size: %lld  total: %lld\n", (long long)vocab_size, (long long)layer1_size, (long long)vocab_size * layer1_size * sizeof(real) * 128); exit(1);}
   if (hs) {
 #ifdef _MSC_VER
 	  syn1 = _aligned_malloc((long long)vocab_size * layer1_size * sizeof(real), 128);
