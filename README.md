@@ -6,6 +6,8 @@ This is the code repository for Joe Strout's Fall 2018 class project for CSC 585
 + A C implementation of word2vec, forked from https://github.com/dav/word2vec
 + Custom code to output particular sets of embedded word vectors for further analysis.
 
+This repository's official home is [here](https://github.com/JoeStrout/csc585-project).
+
 # Installation
 
 The following instructions assume a recent macOS environment with *gcc* and *make* (obtained, for example, by installing the Xcode command-line tools).  Other Unix/Linux environments should work similarly.
@@ -28,7 +30,7 @@ This should compile and link cleanly, with no errors or warnings.  It uses *gcc*
 cd ../scripts
 ./get-data.sh
 ```
-If this script fails, perhaps because your system lacks the *curl* or *unzip* commands, then manually download the [text8 zip file](http://mattmahoney.net/dc/text8.zip) and unzip it into the data directory.
+If this script fails, perhaps because your system lacks the *curl* or *unzip* commands, then manually download the [text8 zip file](http://mattmahoney.net/dc/text8.zip) and unzip it into the data directory.  The result is the first 100 mb of a normalized (lowercased, with punctuation removed) Wikipedia dump.
 
 
 # Training
@@ -56,3 +58,4 @@ This will write selected words, along with correct target values, to three CSV f
 + massWords.csv: target value is 0.1 * log10(mass in kg)
 
 You can then open these CSV files in your favorite spreadsheet program, or paste them into Google Sheets as I have done [here](https://docs.google.com/spreadsheets/d/1K2xWKkExk595OfiI0aGBo7MCvoYJHXi13ZVKEBjEe2I).
+
