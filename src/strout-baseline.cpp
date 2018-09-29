@@ -83,17 +83,23 @@ void OutputCSVHeader(FILE *f) {
 
 void OutputCSVLine(FILE *f, const char *word, float targetValue) {
 	long idx = IndexOfWord(word);
-	fprintf(f, "%s,%ld,%0.1f", word, idx, targetValue);
+	if (idx < 0) {
+		fprintf(stderr, "Word not found in vocabulary: %s\n", word);
+		return;
+	}
+	fprintf(f, "%s,%ld,%0.2f", word, idx, targetValue);
 	Vector &v = vectors[idx];
 	for (int i=0; i<vector_len; i++) fprintf(f, ",%0.5f", v.d[i]);
 	fprintf(f, "\n");
 }
 
 // Output a CSV file containing the embedding vectors of particular words
-// of interest, so we can do further analysis in external tools.
-void OutputWordsOfInterest(const char *filename) {
+// of interest with gender targets, so we can do further analysis in external tools.
+// We'll encode gender as follows: 1 = female, -1 = male.
+void OutputGenderWords(const char *filename) {
 	FILE *f = fopen(filename, "w");
 	OutputCSVHeader(f);
+	// Training data:
 	OutputCSVLine(f, "female", 1);
 	OutputCSVLine(f, "male", -1);
 	OutputCSVLine(f, "she", 1);
@@ -122,12 +128,138 @@ void OutputWordsOfInterest(const char *filename) {
 	OutputCSVLine(f, "gentleman", -1);
 	OutputCSVLine(f, "waitress", 1);
 	OutputCSVLine(f, "waiter", -1);
+	// Test data:
 	OutputCSVLine(f, "daughter", 1);
 	OutputCSVLine(f, "son", -1);
 	OutputCSVLine(f, "princess", 1);
 	OutputCSVLine(f, "prince", -1);
 	OutputCSVLine(f, "her", 1);
-	OutputCSVLine(f, "him", -1);	
+	OutputCSVLine(f, "him", -1);
+	
+	printf("Wrote %s\n", filename);
+}
+
+// Output a CSV file containing the embedding vectors of particular words
+// of interest with latitude targets, so we can do further analysis in external tools.
+// We'll encode latitude as a linear scale, latitude (in degrees) / 90.
+void OutputLatitudeWords(const char *filename) {
+	FILE *f = fopen(filename, "w");
+	OutputCSVHeader(f);
+	// conversion factor from latitude degrees to our encoding:
+	double degrees = 1.0 / 90.0;
+	// Training data:
+	OutputCSVLine(f, "helsinki", 60 * degrees);
+	OutputCSVLine(f, "bergen", 60 * degrees);
+	OutputCSVLine(f, "oslo", 58 * degrees);
+	OutputCSVLine(f, "stockholm", 58 * degrees);
+	OutputCSVLine(f, "edinburgh", 55 * degrees);
+	OutputCSVLine(f, "copenhagen", 55 * degrees);
+	OutputCSVLine(f, "moscow", 55 * degrees);
+	OutputCSVLine(f, "hamburg", 53 * degrees);
+	OutputCSVLine(f, "amsterdam", 52 * degrees);
+	OutputCSVLine(f, "berlin", 52 * degrees);
+	OutputCSVLine(f, "london", 51 * degrees);
+	OutputCSVLine(f, "prague", 50 * degrees);
+	OutputCSVLine(f, "vancouver", 49 * degrees);
+	OutputCSVLine(f, "paris", 48 * degrees);
+	OutputCSVLine(f, "munich", 48 * degrees);
+	OutputCSVLine(f, "vienna", 48 * degrees);
+	OutputCSVLine(f, "budapest", 47 * degrees);
+	OutputCSVLine(f, "montreal", 45 * degrees);
+	OutputCSVLine(f, "venice", 45 * degrees);
+	OutputCSVLine(f, "toronto", 43 * degrees);
+	OutputCSVLine(f, "florence", 43 * degrees);
+	OutputCSVLine(f, "boston", 42 * degrees);
+	OutputCSVLine(f, "chicago", 41 * degrees);
+	OutputCSVLine(f, "barcelona", 41 * degrees);
+	OutputCSVLine(f, "rome", 41 * degrees);
+	OutputCSVLine(f, "istanbul", 41 * degrees);
+	OutputCSVLine(f, "madrid", 40 * degrees);
+	OutputCSVLine(f, "naples", 40 * degrees);
+	OutputCSVLine(f, "beijing", 39 * degrees);
+	OutputCSVLine(f, "athens", 37 * degrees);
+	OutputCSVLine(f, "seoul", 37 * degrees);
+	OutputCSVLine(f, "tokyo", 35 * degrees);
+	OutputCSVLine(f, "kyoto", 35 * degrees);
+	OutputCSVLine(f, "beirut", 33 * degrees);
+	OutputCSVLine(f, "cairo", 30 * degrees);
+	OutputCSVLine(f, "delhi", 28 * degrees);
+	OutputCSVLine(f, "miami", 25 * degrees);
+	OutputCSVLine(f, "taipei", 25 * degrees);
+	OutputCSVLine(f, "macau", 22 * degrees);
+	OutputCSVLine(f, "honolulu", 21 * degrees);
+	OutputCSVLine(f, "hanoi", 21 * degrees);
+	OutputCSVLine(f, "mumbai", 18 * degrees);
+	OutputCSVLine(f, "bangkok", 13 * degrees);
+	OutputCSVLine(f, "caracas", 10 * degrees);
+	OutputCSVLine(f, "nairobi", 1 * degrees);
+	// Test data:
+	OutputCSVLine(f, "dublin", 53 * degrees);
+	OutputCSVLine(f, "zurich", 47 * degrees);
+	OutputCSVLine(f, "lisbon", 38 * degrees);
+	OutputCSVLine(f, "osaka", 35 * degrees);
+	OutputCSVLine(f, "tucson", 32 * degrees);
+	OutputCSVLine(f, "dubai", 25 * degrees);
+	
+	printf("Wrote %s\n", filename);
+}
+
+// Encode mass into an appropriate value for word vectors.
+// We'll use a log scale, centered on 1 kg.  Examples:
+//		1000 kg  -->  0.3
+//		   1 kg  -->  0
+//		   1 g   --> -0.3
+//		   1 mg  --> -0.6
+double encodeMass(float massInKg) {
+	return log10(massInKg) * 0.1;
+}
+
+// Output a CSV file containing the embedding vectors of particular words
+// of interest with latitude targets, so we can do further analysis in external tools.
+// We'll encode latitude as a linear scale, latitude (in degrees) / 90.
+void OutputMassWords(const char *filename) {
+	FILE *f = fopen(filename, "w");
+	OutputCSVHeader(f);
+	// Conversion factors to kilograms:
+	float kg = 1;
+	float g = 0.001;
+	float mg = 0.000001;
+	// Training data:
+	OutputCSVLine(f, "elephant", encodeMass(5000*kg));
+	OutputCSVLine(f, "hippopotamus", encodeMass(3750*kg));
+	OutputCSVLine(f, "walrus", encodeMass(1000*kg));
+	OutputCSVLine(f, "giraffe", encodeMass(800*kg));
+	OutputCSVLine(f, "cow", encodeMass(800*kg));
+	OutputCSVLine(f, "buffalo", encodeMass(700*kg));
+	OutputCSVLine(f, "horse", encodeMass(700*kg));
+	OutputCSVLine(f, "camel", encodeMass(500*kg));
+	OutputCSVLine(f, "donkey", encodeMass(400*kg));
+	OutputCSVLine(f, "bear", encodeMass(300*kg));
+	OutputCSVLine(f, "boar", encodeMass(180*kg));
+	OutputCSVLine(f, "lion", encodeMass(160*kg));
+	OutputCSVLine(f, "gorilla", encodeMass(140*kg));
+	OutputCSVLine(f, "tiger", encodeMass(120*kg));
+	OutputCSVLine(f, "human", encodeMass(70*kg));
+	OutputCSVLine(f, "cougar", encodeMass(63*kg));
+	OutputCSVLine(f, "chimpanzee", encodeMass(45*kg));
+	OutputCSVLine(f, "goat", encodeMass(40*kg));
+	OutputCSVLine(f, "sheep", encodeMass(40*kg));
+	OutputCSVLine(f, "dog", encodeMass(30*kg));
+	OutputCSVLine(f, "bobcat", encodeMass(9*kg));
+	OutputCSVLine(f, "rat", encodeMass(500*g));
+	OutputCSVLine(f, "hamster", encodeMass(160*g));
+	OutputCSVLine(f, "gerbil", encodeMass(60*g));
+	OutputCSVLine(f, "gecko", encodeMass(30*g));
+	OutputCSVLine(f, "ant", encodeMass(20*mg));
+	// Test data:
+	OutputCSVLine(f, "rhinoceros", encodeMass(1500*kg));
+	OutputCSVLine(f, "moose", encodeMass(400*kg));
+	OutputCSVLine(f, "dolphin", encodeMass(115*kg));
+	OutputCSVLine(f, "coyote", encodeMass(13*kg));
+	OutputCSVLine(f, "rabbit", encodeMass(3*kg));
+	OutputCSVLine(f, "mouse", encodeMass(30*g));
+	
+	printf("Wrote %s\n", filename);
 }
 
 int main(int argc, char **argv) {
@@ -170,15 +302,15 @@ int main(int argc, char **argv) {
 
 	printf("Read %ld num_words, with vector length %d\n", num_words, vector_len);
 
-	printf("Index of 'queen': %ld\n", IndexOfWord("queen"));
-	VectorOfWord("queen").Print("\n");
+//	printf("Index of 'queen': %ld\n", IndexOfWord("queen"));
+//	VectorOfWord("queen").Print("\n");
+//	
+//	printf("Index of 'king': %ld\n", IndexOfWord("king"));
+//	VectorOfWord("king").Print("\n");
 	
-	printf("Index of 'king': %ld\n", IndexOfWord("king"));
-	VectorOfWord("king").Print("\n");
+	OutputGenderWords("../data/genderWords.csv");
+	OutputLatitudeWords("../data/latitudeWords.csv");
+	OutputMassWords("../data/massWords.csv");
 	
-	const char* outfile = "../data/wordsOfInterest.csv";
-	OutputWordsOfInterest(outfile);
-	printf("Wrote CSV file to %s\n", outfile);
-
 	return 0;
 }
