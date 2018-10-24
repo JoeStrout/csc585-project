@@ -414,6 +414,7 @@ void *TrainModelThread(void *id) {
       alpha = starting_alpha * (1 - word_count_actual / (real)(iter * train_words + 1));
       if (alpha < starting_alpha * 0.0001) alpha = starting_alpha * 0.0001;
     }
+    // Read an entire sentence into memory (into sen[] array)
     if (sentence_length == 0) {
       while (1) {
         word = ReadWordIndex(fi);
@@ -443,8 +444,10 @@ void *TrainModelThread(void *id) {
       fseek(fi, file_size / (long long)num_threads * (long long)id, SEEK_SET);
       continue;
     }
+    // get the "center" word (which, in skipgram, we try to predict)
     word = sen[sentence_position];
     if (word == -1) continue;
+    // clear accumulators
     for (c = 0; c < layer1_size; c++) neu1[c] = 0;
     for (c = 0; c < layer1_size; c++) neu1e[c] = 0;
     next_random = next_random * (unsigned long long)25214903917 + 11;
@@ -510,16 +513,21 @@ void *TrainModelThread(void *id) {
         }
       }
     } else {  //train skip-gram
+      // loop over the window of context words in the sentence
       for (a = b; a < window * 2 + 1 - b; a++) if (a != window) {
+        // get the position of the context word in the sentence
         c = sentence_position - window + a;
         if (c < 0) continue;
         if (c >= sentence_length) continue;
+        // store the actual context word (as vocabulary index) in last_word
         last_word = sen[c];
-        if (last_word == -1) continue;
+        if (last_word == -1) continue;	// (out-of-vocabulary word; ignore)
+        // get a pointer into our input layer, thus finding the embedding for last_word
         l1 = last_word * layer1_size;
+        // iterate (reusing c) over the individual elements of that input vector
         for (c = 0; c < layer1_size; c++) neu1e[c] = 0;
         // HIERARCHICAL SOFTMAX
-        if (hs) for (d = 0; d < vocab[word].codelen; d++) {
+        if (hs) for (d = 0; d < vocab[word].codelen; d++) {	// ?
           f = 0;
           l2 = vocab[word].point[d] * layer1_size;
           // Propagate hidden -> output
@@ -555,8 +563,11 @@ void *TrainModelThread(void *id) {
           for (c = 0; c < layer1_size; c++) neu1e[c] += g * syn1neg[c + l2];
           for (c = 0; c < layer1_size; c++) syn1neg[c + l2] += g * syn0[c + l1];
         }
-        // Learn weights input -> hidden
+        // Learn weights input -> hidden (thus updating embedding of last_word)
         for (c = 0; c < layer1_size; c++) syn0[c + l1] += neu1e[c];
+        // SO, here is where we could reset (or avoid changing) pinned values.
+        // Perhaps we need a set of flags, parallel to syn0, which means
+        // "pinned", and so we don't change syn0 at those points.
       }
     }
     sentence_position++;
