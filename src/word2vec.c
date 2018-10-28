@@ -42,7 +42,7 @@ const int vocab_hash_size = 30000000;  // Maximum 30 * 0.7 = 21M words in the vo
 typedef float real;                    // Precision of float numbers
 
 struct vocab_word {
-  long long cn;
+  long count;
   int *point;
   char *word, *code, codelen;
 };
@@ -56,6 +56,7 @@ long long vocab_max_size = 1000, vocab_size = 0, layer1_size = 100;
 long long train_words = 0, word_count_actual = 0, iter = 5, file_size = 0, classes = 0;
 real alpha = 0.025, starting_alpha, sample = 1e-3;
 real *syn0, *syn1, *syn1neg, *expTable;
+real *pins;			// array parallel to syn0, with 1 for free-to-change values, and 0 for pinned values
 clock_t start;
 
 int hs = 0, negative = 5;
@@ -67,14 +68,14 @@ void InitUnigramTable() {
   double train_words_pow = 0;
   double d1, power = 0.75;
   table = (int *)malloc(table_size * sizeof(int));
-  for (a = 0; a < vocab_size; a++) train_words_pow += pow(vocab[a].cn, power);
+  for (a = 0; a < vocab_size; a++) train_words_pow += pow(vocab[a].count, power);
   i = 0;
-  d1 = pow(vocab[i].cn, power) / train_words_pow;
+  d1 = pow(vocab[i].count, power) / train_words_pow;
   for (a = 0; a < table_size; a++) {
     table[a] = i;
     if (a / (double)table_size > d1) {
       i++;
-      d1 += pow(vocab[i].cn, power) / train_words_pow;
+      d1 += pow(vocab[i].count, power) / train_words_pow;
     }
     if (i >= vocab_size) i = vocab_size - 1;
   }
@@ -136,7 +137,7 @@ int AddWordToVocab(char *word) {
   if (length > MAX_STRING) length = MAX_STRING;
   vocab[vocab_size].word = (char *)calloc(length, sizeof(char));
   strcpy(vocab[vocab_size].word, word);
-  vocab[vocab_size].cn = 0;
+  vocab[vocab_size].count = 0;
   vocab_size++;
   // Reallocate memory if needed
   if (vocab_size + 2 >= vocab_max_size) {
@@ -151,7 +152,7 @@ int AddWordToVocab(char *word) {
 
 // Used later for sorting by word counts
 int VocabCompare(const void *a, const void *b) {
-    return ((struct vocab_word *)b)->cn - ((struct vocab_word *)a)->cn;
+    return ((struct vocab_word *)b)->count - ((struct vocab_word *)a)->count;
 }
 
 // Sorts the vocabulary by frequency using word counts
@@ -165,7 +166,7 @@ void SortVocab() {
   train_words = 0;
   for (a = 0; a < size; a++) {
     // Words occuring less than min_count times will be discarded from the vocab
-    if ((vocab[a].cn < min_count) && (a != 0)) {
+    if ((vocab[a].count < min_count) && (a != 0)) {
       vocab_size--;
       free(vocab[a].word);
     } else {
@@ -173,7 +174,7 @@ void SortVocab() {
       hash=GetWordHash(vocab[a].word);
       while (vocab_hash[hash] != -1) hash = (hash + 1) % vocab_hash_size;
       vocab_hash[hash] = a;
-      train_words += vocab[a].cn;
+      train_words += vocab[a].count;
     }
   }
   vocab = (struct vocab_word *)realloc(vocab, (vocab_size + 1) * sizeof(struct vocab_word));
@@ -188,8 +189,8 @@ void SortVocab() {
 void ReduceVocab() {
   int a, b = 0;
   unsigned int hash;
-  for (a = 0; a < vocab_size; a++) if (vocab[a].cn > min_reduce) {
-    vocab[b].cn = vocab[a].cn;
+  for (a = 0; a < vocab_size; a++) if (vocab[a].count > min_reduce) {
+    vocab[b].count = vocab[a].count;
     vocab[b].word = vocab[a].word;
     b++;
   } else free(vocab[a].word);
@@ -213,7 +214,7 @@ void CreateBinaryTree() {
   long long *count = (long long *)calloc(vocab_size * 2 + 1, sizeof(long long));
   long long *binary = (long long *)calloc(vocab_size * 2 + 1, sizeof(long long));
   long long *parent_node = (long long *)calloc(vocab_size * 2 + 1, sizeof(long long));
-  for (a = 0; a < vocab_size; a++) count[a] = vocab[a].cn;
+  for (a = 0; a < vocab_size; a++) count[a] = vocab[a].count;
   for (a = vocab_size; a < vocab_size * 2; a++) count[a] = 1e15;
   pos1 = vocab_size - 1;
   pos2 = vocab_size;
@@ -295,8 +296,8 @@ void LearnVocabFromTrainFile() {
     i = SearchVocab(word);
     if (i == -1) {
       a = AddWordToVocab(word);
-      vocab[a].cn = 1;
-    } else vocab[i].cn++;
+      vocab[a].count = 1;
+    } else vocab[i].count++;
     if (vocab_size > vocab_hash_size * 0.7) ReduceVocab();
   }
   SortVocab();
@@ -311,7 +312,7 @@ void LearnVocabFromTrainFile() {
 void SaveVocab() {
   long long i;
   FILE *fo = fopen(save_vocab_file, "wb");
-  for (i = 0; i < vocab_size; i++) fprintf(fo, "%s %lld\n", vocab[i].word, vocab[i].cn);
+  for (i = 0; i < vocab_size; i++) fprintf(fo, "%s %ld\n", vocab[i].word, vocab[i].count);
   fclose(fo);
 }
 
@@ -330,7 +331,10 @@ void ReadVocab() {
     ReadWord(word, fin);
     if (feof(fin)) break;
     a = AddWordToVocab(word);
-    fscanf(fin, "%lld%c", &vocab[a].cn, &c);
+    // JJS: How does this work?  We wrote out (in SaveVocab) the word followed by the count.
+    // But here we seem to be reading them in the opposite order.  I'm not sure this
+    // is not a bug.
+    fscanf(fin, "%ld%c", &vocab[a].count, &c);
     i++;
   }
   SortVocab();
@@ -348,45 +352,55 @@ void ReadVocab() {
   fclose(fin);
 }
 
+// Allocate a (probably quite large) chunk of memory, neatly aligned
+// on 128-byte boundaries.
+void *Alloc(long long sizeInBytes, const char *memo) {
+	void *ptr = NULL;
+#ifdef _MSC_VER
+	ptr = _aligned_malloc(sizeInBytes, 128);
+#elif defined  linux
+	posix_memalign(&ptr, 128, sizeInBytes);
+#else
+	#error Not a supported platform
+#endif
+	if (ptr == NULL) {
+		printf("Memmory allocation failed on %s (%lld bytes)\n", memo, sizeInBytes);
+		exit(1);
+	}
+	return ptr;
+}
+
 void InitNet() {
   long long a, b;
   unsigned long long next_random = 1;
 
-#ifdef _MSC_VER
-  syn0 = _aligned_malloc((long long)vocab_size * layer1_size * sizeof(real), 128);
-#elif defined  linux
-  a = posix_memalign((void **)&syn0, 128, (long long)vocab_size * layer1_size * sizeof(real));
-#else
-puke and die, o what to do?!
-#endif
-
-  if (syn0 == NULL) {printf("Memory allocation failed on syn0 (word2vec.c line " LINE_STRING ")"); printf("vocab_size: %lld  layer1_size: %lld  total: %lld\n", (long long)vocab_size, (long long)layer1_size, (long long)vocab_size * layer1_size * sizeof(real) * 128); exit(1);}
+  syn0 = Alloc((long long)vocab_size * layer1_size * sizeof(real), "syn0");
+  pins = Alloc((long long)vocab_size * layer1_size * sizeof(real), "pins");
+  
   if (hs) {
-#ifdef _MSC_VER
-	  syn1 = _aligned_malloc((long long)vocab_size * layer1_size * sizeof(real), 128);
-#elif defined  linux
-	  a = posix_memalign((void **)&syn1, 128, (long long)vocab_size * layer1_size * sizeof(real));
-#endif    
-    if (syn1 == NULL) {printf("Memory allocation failed on syn1 (word2vec.c line " LINE_STRING ")\n"); exit(1);}
-    for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++)
-     syn1[a * layer1_size + b] = 0;
+  	syn1 = Alloc((long long)vocab_size * layer1_size * sizeof(real), "syn1");
+    for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++) {
+		syn1[a * layer1_size + b] = 0;
+	}
   }
+
   if (negative>0) {
-#ifdef _MSC_VER
-	  syn1neg = _aligned_malloc((long long)vocab_size * layer1_size * sizeof(real), 128);
-#elif defined  linux
-	  a = posix_memalign((void **)&syn1neg, 128, (long long)vocab_size * layer1_size * sizeof(real));
-#endif
-    
-    if (syn1neg == NULL) {printf("Memory allocation failed on syn1neg (word2vec.c line " LINE_STRING ")\n"); exit(1);}
+    syn1neg = Alloc((long long)vocab_size * layer1_size * sizeof(real), "syn1neg");
     for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++)
-     syn1neg[a * layer1_size + b] = 0;
+     	syn1neg[a * layer1_size + b] = 0;
   }
+  
+  // Randomize initial weights
   for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++) {
     next_random = next_random * (unsigned long long)25214903917 + 11;
     syn0[a * layer1_size + b] = (((next_random & 0xFFFF) / (real)65536) - 0.5) / layer1_size;
   }
+  
+  // Create a binary tree assigning unique codes to each vocabulary word
   CreateBinaryTree();
+  
+  // Initialize pins
+  
 }
 
 void *TrainModelThread(void *id) {
@@ -424,7 +438,7 @@ void *TrainModelThread(void *id) {
         if (word == 0) break;
         // The subsampling randomly discards frequent words while keeping the ranking same
         if (sample > 0) {
-          real ran = (sqrt(vocab[word].cn / (sample * train_words)) + 1) * (sample * train_words) / vocab[word].cn;
+          real ran = (sqrt(vocab[word].count / (sample * train_words)) + 1) * (sample * train_words) / vocab[word].count;
           next_random = next_random * (unsigned long long)25214903917 + 11;
           if (ran < (next_random & 0xFFFF) / (real)65536) continue;
         }
