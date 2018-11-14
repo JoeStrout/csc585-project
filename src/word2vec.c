@@ -40,6 +40,9 @@
 const int vocab_hash_size = 30000000;  // Maximum 30 * 0.7 = 21M words in the vocabulary
 
 typedef float real;                    // Precision of float numbers
+typedef unsigned char bool;
+const bool true = 1;
+const bool false = 0;
 
 struct vocab_word {
   long count;
@@ -51,6 +54,9 @@ char train_file[MAX_STRING], output_file[MAX_STRING];
 char save_vocab_file[MAX_STRING], read_vocab_file[MAX_STRING];
 struct vocab_word *vocab;
 int binary = 0, cbow = 1, debug_mode = 2, window = 5, min_count = 5, num_threads = 12, min_reduce = 1;
+bool optPin = false;
+int pinRepeats = 1;
+
 int *vocab_hash;
 long long vocab_max_size = 1000, vocab_size = 0, layer1_size = 100;
 long long train_words = 0, word_count_actual = 0, iter = 5, file_size = 0, classes = 0;
@@ -105,7 +111,7 @@ void ReadWord(char *word, FILE *fin) {
 }
 
 // Returns hash value of a word
-int GetWordHash(char *word) {
+int GetWordHash(const char *word) {
   unsigned long long a, hash = 0;
   for (a = 0; a < strlen(word); a++) hash = hash * 257 + word[a];
   hash = hash % vocab_hash_size;
@@ -113,7 +119,7 @@ int GetWordHash(char *word) {
 }
 
 // Returns position of a word in the vocabulary; if the word is not found, returns -1
-int SearchVocab(char *word) {
+int SearchVocab(const char *word) {
   unsigned int hash = GetWordHash(word);
   while (1) {
     if (vocab_hash[hash] == -1) return -1;
@@ -207,7 +213,7 @@ void ReduceVocab() {
 }
 
 // Create binary Huffman tree using the word counts
-// Frequent words will have short uniqe binary codes
+// Frequent words will have short unique binary codes
 void CreateBinaryTree() {
   long long a, b, i, min1i, min2i, pos1, pos2, point[MAX_CODE_LENGTH];
   char code[MAX_CODE_LENGTH];
@@ -370,6 +376,157 @@ void *Alloc(long long sizeInBytes, const char *memo) {
 	return ptr;
 }
 
+void Pin(const char *word, long dimension, float value) {
+	long index = SearchVocab(word);
+	if (index < 0) {
+		printf("Can't pin \"%s\" because it is not found in vocabulary.\n", word);
+	}
+	long v = index * layer1_size;
+	syn0[v + dimension] = value;	// set specified dimension to pre-defined value
+	pins[v + dimension] = 0;		// don't allow this value to change
+	printf("Pinned value for \"%s\" (word index %ld) on dimension %ld to %f\n",
+		word, index, dimension, value);
+}
+
+// Return whether the given word (by index) has any pinned dimensions.
+bool IsPinned(long wordIndex) {
+	long v = wordIndex * layer1_size;	
+	// Currently only the first 3 dimensions are ever pinned, so:
+	return pins[v] == 0 || pins[v+1] == 0 || pins[v+2] == 0;
+}
+
+// Encode mass into an appropriate value for word vectors.
+// We'll use a log scale, centered on 1 kg.  Examples:
+//		1000 kg  -->  0.3
+//		   1 kg  -->  0
+//		   1 g   --> -0.3
+//		   1 mg  --> -0.6
+double encodeMass(float massInKg) {
+	return log10(massInKg) * 0.1;
+}
+
+
+// Initialize the 'pins' array and pinned values.
+void InitPins() {
+	// Start by initializing all pins to 1, allowing all values to be changed.
+	for (long a = 0; a < vocab_size; a++) for (long b = 0; b < layer1_size; b++) {
+    	pins[a * layer1_size + b] = 1;
+    }
+    
+    // If not using the pinned option, then we're done.
+    if (!optPin) return;
+
+	// Then, pin select values.
+	Pin("female", 0, 1);
+	Pin("male", 0, -1);
+	Pin("she", 0, 1);
+	Pin("he", 0, -1);
+	Pin("queen", 0, 1);
+	Pin("king", 0, -1);
+	Pin("duchess", 0, 1);
+	Pin("duke", 0, -1);
+	Pin("aunt", 0, 1);
+	Pin("uncle", 0, -1);
+	Pin("girl", 0, 1);
+	Pin("boy", 0, -1);
+	Pin("niece", 0, 1);
+	Pin("nephew", 0, -1);
+	Pin("mother", 0, 1);
+	Pin("father", 0, -1);
+	Pin("wife", 0, 1);
+	Pin("husband", 0, -1);
+	Pin("nun", 0, 1);
+	Pin("priest", 0, -1);
+	Pin("actress", 0, 1);
+	Pin("actor", 0, -1);
+	Pin("bride", 0, 1);
+	Pin("groom", 0, -1);
+	Pin("lady", 0, 1);
+	Pin("gentleman", 0, -1);
+	Pin("waitress", 0, 1);
+	Pin("waiter", 0, -1);
+	
+	// conversion factor from latitude degrees to our encoding:
+	double degrees = 1.0 / 90.0;
+
+	Pin("helsinki", 1, 60 * degrees);
+	Pin("bergen", 1, 60 * degrees);
+	Pin("oslo", 1, 58 * degrees);
+	Pin("stockholm", 1, 58 * degrees);
+	Pin("edinburgh", 1, 55 * degrees);
+	Pin("copenhagen", 1, 55 * degrees);
+	Pin("moscow", 1, 55 * degrees);
+	Pin("hamburg", 1, 53 * degrees);
+	Pin("amsterdam", 1, 52 * degrees);
+	Pin("berlin", 1, 52 * degrees);
+	Pin("london", 1, 51 * degrees);
+	Pin("prague", 1, 50 * degrees);
+	Pin("vancouver", 1, 49 * degrees);
+	Pin("paris", 1, 48 * degrees);
+	Pin("munich", 1, 48 * degrees);
+	Pin("vienna", 1, 48 * degrees);
+	Pin("budapest", 1, 47 * degrees);
+	Pin("montreal", 1, 45 * degrees);
+	Pin("venice", 1, 45 * degrees);
+	Pin("toronto", 1, 43 * degrees);
+	Pin("florence", 1, 43 * degrees);
+	Pin("boston", 1, 42 * degrees);
+	Pin("chicago", 1, 41 * degrees);
+	Pin("barcelona", 1, 41 * degrees);
+	Pin("rome", 1, 41 * degrees);
+	Pin("istanbul", 1, 41 * degrees);
+	Pin("madrid", 1, 40 * degrees);
+	Pin("naples", 1, 40 * degrees);
+	Pin("beijing", 1, 39 * degrees);
+	Pin("athens", 1, 37 * degrees);
+	Pin("seoul", 1, 37 * degrees);
+	Pin("tokyo", 1, 35 * degrees);
+	Pin("kyoto", 1, 35 * degrees);
+	Pin("beirut", 1, 33 * degrees);
+	Pin("cairo", 1, 30 * degrees);
+	Pin("delhi", 1, 28 * degrees);
+	Pin("miami", 1, 25 * degrees);
+	Pin("taipei", 1, 25 * degrees);
+	Pin("macau", 1, 22 * degrees);
+	Pin("honolulu", 1, 21 * degrees);
+	Pin("hanoi", 1, 21 * degrees);
+	Pin("mumbai", 1, 18 * degrees);
+	Pin("bangkok", 1, 13 * degrees);
+	Pin("caracas", 1, 10 * degrees);
+	Pin("nairobi", 1, 1 * degrees);
+
+	// Conversion factors to kilograms:
+	float kg = 1;
+	float g = 0.001;
+	float mg = 0.000001;
+
+	Pin("elephant", 2, encodeMass(5000*kg));
+	Pin("hippopotamus", 2, encodeMass(3750*kg));
+	Pin("walrus", 2, encodeMass(1000*kg));
+	Pin("giraffe", 2, encodeMass(800*kg));
+	Pin("cow", 2, encodeMass(800*kg));
+	Pin("buffalo", 2, encodeMass(700*kg));
+	Pin("horse", 2, encodeMass(700*kg));
+	Pin("camel", 2, encodeMass(500*kg));
+	Pin("donkey", 2, encodeMass(400*kg));
+	Pin("bear", 2, encodeMass(300*kg));
+	Pin("boar", 2, encodeMass(180*kg));
+	Pin("lion", 2, encodeMass(160*kg));
+	Pin("gorilla", 2, encodeMass(140*kg));
+	Pin("tiger", 2, encodeMass(120*kg));
+	Pin("human", 2, encodeMass(70*kg));
+	Pin("cougar", 2, encodeMass(63*kg));
+	Pin("chimpanzee", 2, encodeMass(45*kg));
+	Pin("goat", 2, encodeMass(40*kg));
+	Pin("sheep", 2, encodeMass(40*kg));
+	Pin("dog", 2, encodeMass(30*kg));
+	Pin("bobcat", 2, encodeMass(9*kg));
+	Pin("rat", 2, encodeMass(500*g));
+	Pin("hamster", 2, encodeMass(160*g));
+	Pin("gecko", 2, encodeMass(30*g));
+	Pin("ant", 2, encodeMass(20*mg));
+}
+
 void InitNet() {
   long long a, b;
   unsigned long long next_random = 1;
@@ -399,8 +556,14 @@ void InitNet() {
   // Create a binary tree assigning unique codes to each vocabulary word
   CreateBinaryTree();
   
-  // Initialize pins
+  // Initialize pins and pinned values
+  InitPins();
   
+  // Test
+  printf("IsPinned(%s): %d\n", "husband", IsPinned(SearchVocab("husband")));
+  printf("IsPinned(%s): %d\n", "gecko", IsPinned(SearchVocab("gecko")));
+  printf("IsPinned(%s): %d\n", "chicago", IsPinned(SearchVocab("chicago")));
+  printf("IsPinned(%s): %d\n", "shoe", IsPinned(SearchVocab("shoe")));
 }
 
 void *TrainModelThread(void *id) {
@@ -538,58 +701,70 @@ void *TrainModelThread(void *id) {
         if (last_word == -1) continue;	// (out-of-vocabulary word; ignore)
         // get a pointer into our input layer, thus finding the embedding for last_word
         l1 = last_word * layer1_size;
-        // iterate (reusing c) over the individual elements of that input vector
-        for (c = 0; c < layer1_size; c++) neu1e[c] = 0;
-        // HIERARCHICAL SOFTMAX
-        if (hs) for (d = 0; d < vocab[word].codelen; d++) {	// ?
-          f = 0;
-          l2 = vocab[word].point[d] * layer1_size;
-          // Propagate hidden -> output
-          for (c = 0; c < layer1_size; c++) f += syn0[c + l1] * syn1[c + l2];
-          if (f <= -MAX_EXP) continue;
-          else if (f >= MAX_EXP) continue;
-          else f = expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))];
-          // 'g' is the gradient multiplied by the learning rate
-          g = (1 - vocab[word].code[d] - f) * alpha;
-          // Propagate errors output -> hidden
-          for (c = 0; c < layer1_size; c++) neu1e[c] += g * syn1[c + l2];
-          // Learn weights hidden -> output
-          for (c = 0; c < layer1_size; c++) syn1[c + l2] += g * syn0[c + l1];
-        }
-        // NEGATIVE SAMPLING
-        if (negative > 0) for (d = 0; d < negative + 1; d++) {
-          if (d == 0) {
-            target = word;
-            label = 1;
-          } else {
-            next_random = next_random * (unsigned long long)25214903917 + 11;
-            target = table[(next_random >> 16) % table_size];
-            if (target == 0) target = next_random % (vocab_size - 1) + 1;
-            if (target == word) continue;
-            label = 0;
-          }
-          l2 = target * layer1_size;
-          f = 0;
-          for (c = 0; c < layer1_size; c++) f += syn0[c + l1] * syn1neg[c + l2];
-          if (f > MAX_EXP) g = (label - 1) * alpha;
-          else if (f < -MAX_EXP) g = (label - 0) * alpha;
-          else g = (label - expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))]) * alpha;
-          for (c = 0; c < layer1_size; c++) neu1e[c] += g * syn1neg[c + l2];
-          for (c = 0; c < layer1_size; c++) syn1neg[c + l2] += g * syn0[c + l1];
-        }
-        // Learn weights input -> hidden (thus updating embedding of last_word)
-        for (c = 0; c < layer1_size; c++) syn0[c + l1] += neu1e[c];
-        // SO, here is where we could reset (or avoid changing) pinned values.
-        // Perhaps we need a set of flags, parallel to syn0, which means
-        // "pinned", and so we don't change syn0 at those points.
-      }
-    }
+        
+        // if either the target word or the context word contains a pinned value,
+        // give it more weight by repeating this training process multiple times
+        int repeats = 1;
+        if (IsPinned(word) || IsPinned(last_word)) repeats = pinRepeats;
+        
+        for (int repeat=0; repeat < repeats; repeat++) {
+			// clear the error terms corresponding to our hidden layer
+			for (c = 0; c < layer1_size; c++) neu1e[c] = 0;
+			// HIERARCHICAL SOFTMAX
+			if (hs) for (d = 0; d < vocab[word].codelen; d++) {	// ?
+			  f = 0;
+			  l2 = vocab[word].point[d] * layer1_size;
+			  // Propagate hidden -> output
+			  for (c = 0; c < layer1_size; c++) f += syn0[c + l1] * syn1[c + l2];
+			  if (f <= -MAX_EXP) continue;
+			  else if (f >= MAX_EXP) continue;
+			  else f = expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))];
+			  // 'g' is the gradient multiplied by the learning rate
+			  g = (1 - vocab[word].code[d] - f) * alpha;
+			  // Propagate errors output -> hidden
+			  for (c = 0; c < layer1_size; c++) neu1e[c] += g * syn1[c + l2];
+			  // Learn weights hidden -> output
+			  for (c = 0; c < layer1_size; c++) syn1[c + l2] += g * syn0[c + l1];
+			}
+			// NEGATIVE SAMPLING
+			if (negative > 0) for (d = 0; d < negative + 1; d++) {
+			  if (d == 0) {
+				target = word;
+				label = 1;
+			  } else {
+				next_random = next_random * (unsigned long long)25214903917 + 11;
+				target = table[(next_random >> 16) % table_size];
+				if (target == 0) target = next_random % (vocab_size - 1) + 1;
+				if (target == word) continue;
+				label = 0;
+			  }
+			  l2 = target * layer1_size;
+			  f = 0;
+			  for (c = 0; c < layer1_size; c++) f += syn0[c + l1] * syn1neg[c + l2];
+			  if (f > MAX_EXP) g = (label - 1) * alpha;
+			  else if (f < -MAX_EXP) g = (label - 0) * alpha;
+			  else g = (label - expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))]) * alpha;
+			  for (c = 0; c < layer1_size; c++) neu1e[c] += g * syn1neg[c + l2];
+			  for (c = 0; c < layer1_size; c++) syn1neg[c + l2] += g * syn0[c + l1];
+			}
+			// Learn weights input -> hidden (thus updating embedding of last_word),
+			// gated by our 'pins' array.
+			for (c = 0; c < layer1_size; c++) syn0[l1 + c] += neu1e[c] * pins[l1 + c];
+			//if (last_word == iKing) printf("Updated iKing(%ld); dim 5 is now %f, pins[%lld]=%f\n", iKing, syn0[l1 + 5], l1 + 5, pins[l1 + 5]);
+		
+		} // next repeat
+        
+      } // next context word
+    } // end of "if skipgram" (vs CBOW)
+    
     sentence_position++;
     if (sentence_position >= sentence_length) {
       sentence_length = 0;
       continue;
     }
-  }
+
+  } // next word in file
+  
   fclose(fi);
   free(neu1);
   free(neu1e);
@@ -745,6 +920,11 @@ int main(int argc, char **argv) {
     printf("\t\tThe vocabulary will be read from <file>, not constructed from the training data\n");
     printf("\t-cbow <int>\n");
     printf("\t\tUse the continuous bag of words model; default is 1 (use 0 for skip-gram model)\n");
+    printf("\t-pin <int>\n");
+    printf("\t\tPin certain words/features; default is 0 (use 1 to pin)\n");
+    printf("\t-pin-repeats <int>\n");
+    printf("\t\tNumber of times to repeat training examples involving pinned words (default = 1)\n");
+    
     printf("\nExamples:\n");
     printf("./word2vec -train data.txt -output vec.txt -size 200 -window 5 -sample 1e-4 -negative 5 -hs 0 -binary 0 -cbow 1 -iter 3\n\n");
     return 0;
@@ -770,6 +950,13 @@ int main(int argc, char **argv) {
   if ((i = ArgPos((char *)"-iter", argc, argv)) > 0) iter = atoi(argv[i + 1]);
   if ((i = ArgPos((char *)"-min-count", argc, argv)) > 0) min_count = atoi(argv[i + 1]);
   if ((i = ArgPos((char *)"-classes", argc, argv)) > 0) classes = atoi(argv[i + 1]);
+  if ((i = ArgPos((char *)"-pin", argc, argv)) > 0) optPin = atoi(argv[i + 1]);
+  if ((i = ArgPos((char *)"-pin-repeats", argc, argv)) > 0) pinRepeats = atoi(argv[i + 1]);
+
+  printf("Training mode: %s", cbow ? "CBOW" : "SkipGram");
+  if (optPin) printf(" with pinned words; pin-repeats = %d", pinRepeats);
+  printf("\n");
+
   vocab = (struct vocab_word *)calloc(vocab_max_size, sizeof(struct vocab_word));
   vocab_hash = (int *)calloc(vocab_hash_size, sizeof(int));
   expTable = (real *)malloc((EXP_TABLE_SIZE + 1) * sizeof(real));

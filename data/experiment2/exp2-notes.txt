@@ -1,0 +1,1 @@
+This experiment used pinned words/features, but with no special treatment of training examples involving pinned words.

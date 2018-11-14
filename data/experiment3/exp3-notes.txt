@@ -1,0 +1,1 @@
+This experiment used pinned words, with any training example involving a pinned word repeated 1000 times.
