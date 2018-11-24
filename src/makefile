@@ -5,7 +5,7 @@ CC = gcc
 #Using -Ofast instead of -O3 might result in faster code, but is supported only by newer GCC versions
 CFLAGS = -lm -pthread -O3 -march=native -Wall -funroll-loops -Wno-unused-result
 
-all: strout-baseline word2vec word2phrase distance word-analogy compute-accuracy
+all: extract word2vec word2phrase distance word-analogy compute-accuracy
 
 word2vec : word2vec.c
 	$(CC) word2vec.c -o ${BIN_DIR}/word2vec $(CFLAGS)
@@ -18,8 +18,8 @@ word-analogy : word-analogy.c
 compute-accuracy : compute-accuracy.c
 	$(CC) compute-accuracy.c -o ${BIN_DIR}/compute-accuracy $(CFLAGS)
 	chmod +x ${SCRIPTS_DIR}/*.sh
-strout-baseline : strout-baseline.cpp
-	$(CC) strout-baseline.cpp -o ${BIN_DIR}/strout-baseline $(CFLAGS)
+extract : extract.cpp
+	$(CC) extract.cpp -o ${BIN_DIR}/extract $(CFLAGS)
 
 clean:
-	pushd ${BIN_DIR} && rm -rf word2vec word2phrase distance word-analogy compute-accuracy strout-baseline; popd
+	pushd ${BIN_DIR} && rm -rf word2vec word2phrase distance word-analogy compute-accuracy extract; popd
