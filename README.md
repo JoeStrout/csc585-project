@@ -32,30 +32,43 @@ cd ../scripts
 ```
 If this script fails, perhaps because your system lacks the *curl* or *unzip* commands, then manually download the [text8 zip file](http://mattmahoney.net/dc/text8.zip) and unzip it into the data directory.  The result is the first 100 mb of a normalized (lowercased, with punctuation removed) Wikipedia dump.
 
+# How to Skip Training
+
+Pre-trained word vectors four each of the four experiments can be found in the data directory.  For each experiment, you will find a notes file describing the experimental conditions; CSV files containing training and test words for gender, latitude, and mass (and in the case of experiment 4, also _isDangerous_ and _hasWheels_), and the full set of word embeddings in binary form (text8-vector.bin).
 
 # Training
 
-To generate embedded word vectors, run the following script in `scripts` directory:
+To regenerate basic embedded word vectors, run the following script in `scripts` directory:
 ```bash
 ./create-text8-vector-data.sh
 ```
-This looks in the `data` directory for the `test8` file downloaded in step 4 of the installation above, and applies the word2vec algorithm to generate embedded word vectors for the 1.7 million words therein.
+This looks in the `data` directory for the `test8` file downloaded in step 4 of the installation above, and applies the word2vec algorithm (in skip-gram mode) to generate embedded word vectors for the 1.7 million words therein.
 
-Progress will be displayed as the training proceeds.  On my MacBook Pro, it takes about six minutes.  Go get a cup of coffee.
+Alternatively, you can run one of the four experimental scripts, `experiment-1.sh` through `experiment-4.sh`.  The first of these is equivalent to `create-text8-vector-data.sh`, while the others apply different options:
 
+* `experiment-1.sh`: baseline, equivalent to `create-text8-vector-data.sh`
+* `experiment-2.sh`: simple pinning of gender, latitude, and mass
+* `experiment-3.sh`: as above, but with pinned examples repeated 1000X
+* `experiment-4.sh`: simple pinning with the addition of _hasWheels_ and _isDangerous_
+
+Progress will be displayed as the training proceeds.  On my MacBook Pro, it takes about half an hour, except for experiment 2, which took about 24 hours.
+
+After any experimental run, the `text8-vector.bin` word embeddings will be found in the data directory.  The next step is to extract and analyze the data of interest.
 
 # Data extraction & analysis
 
-To reproduce the baseline analysis in the HW3 paper, change to the `bin` directory and run the `strout-baseline` executable, passing in the path to the word vectors:
+To reproduce the baseline analyses in the HW4 paper, change to the `bin` directory and run the `extract` executable, passing in the path to the word vectors:
 ```bash
 cd ../bin
-./strout-baseline ../data/text8-vector.bin
+./extract ../data/text8-vector.bin
 ```
-This will write selected words, along with correct target values, to three CSV files in the data directory:
+This will write selected words, along with correct target values, to five CSV files in the data directory:
 
 + genderWords.csv: target value = 1 for female, 1 for male
 + latitudeWords.csv: target value is degrees North divided by 90
 + massWords.csv: target value is 0.1 * log10(mass in kg)
++ hasWheels.csv: target value is 1 where _hasWheels_ is true, 0 where false
++ isDangerous.csv: target value is 1 where _isDangerous_ is true, 0 where false
 
-You can then open these CSV files in your favorite spreadsheet program, or paste them into Google Sheets as I have done [here](https://docs.google.com/spreadsheets/d/1K2xWKkExk595OfiI0aGBo7MCvoYJHXi13ZVKEBjEe2I).
+You can then open these CSV files in your favorite spreadsheet program, or paste them into Google Sheets as I have done [here](https://docs.google.com/spreadsheets/d/1I4IotygJBsB9d8Tt4K0PM4qMbyEC_L2TXUjB9Ew8xeE/edit).
 
