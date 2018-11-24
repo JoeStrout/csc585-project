@@ -51,13 +51,13 @@ Alternatively, you can run one of the four experimental scripts, `experiment-1.s
 * `experiment-3.sh`: as above, but with pinned examples repeated 1000X
 * `experiment-4.sh`: simple pinning with the addition of _hasWheels_ and _isDangerous_
 
-Progress will be displayed as the training proceeds.  On my MacBook Pro, it takes about half an hour, except for experiment 2, which took about 24 hours.
+Progress will be displayed as the training proceeds.  On my MacBook Pro, it takes about half an hour, except for experiment 3, which took about 24 hours.
 
 After any experimental run, the `text8-vector.bin` word embeddings will be found in the data directory.  The next step is to extract and analyze the data of interest.
 
 # Data extraction & analysis
 
-To reproduce the baseline analyses in the HW4 paper, change to the `bin` directory and run the `extract` executable, passing in the path to the word vectors:
+To reproduce the analyses in the HW4 paper, change to the `bin` directory and run the `extract` executable, passing in the path to the word vectors:
 ```bash
 cd ../bin
 ./extract ../data/text8-vector.bin
