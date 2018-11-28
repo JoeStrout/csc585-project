@@ -70,5 +70,10 @@ This will write selected words, along with correct target values, to five CSV fi
 + hasWheels.csv: target value is 1 where _hasWheels_ is true, 0 where false
 + isDangerous.csv: target value is 1 where _isDangerous_ is true, 0 where false
 
-You can then open these CSV files in your favorite spreadsheet program, or paste them into Google Sheets as I have done [here](https://docs.google.com/spreadsheets/d/1I4IotygJBsB9d8Tt4K0PM4qMbyEC_L2TXUjB9Ew8xeE/edit).
+You can then open these CSV files in your favorite spreadsheet program, or paste them into Google Sheets as I have done here:
+
++ [Experiment 1]https://docs.google.com/spreadsheets/d/1K2xWKkExk595OfiI0aGBo7MCvoYJHXi13ZVKEBjEe2I/edit)
++ [Experiment 2](https://docs.google.com/spreadsheets/d/19JAdXgdeqhVVEyZB_crp6Vdz6ipA_ZduYhDHIzE0MKw/edit)
++ [Experiment 3](https://docs.google.com/spreadsheets/d/1whWXltAz9JLxGX1eAXj1EX57EhAZvdwqRzGjrERz8tI/edit)
++ [Experiment 4](https://docs.google.com/spreadsheets/d/1I4IotygJBsB9d8Tt4K0PM4qMbyEC_L2TXUjB9Ew8xeE/edit)
 
